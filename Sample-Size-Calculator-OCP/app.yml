@@ -1,0 +1,19 @@
+meta:
+  app_id: py_sample_size_calc_app
+  display_name: Sample Size Calculator
+  version: 1.0.0-dev.24
+  vendor: optimizely
+  summary: Opal tool to estimate time to run an experiment
+  support_url: https://support.optimizely.com
+  contact_email: support@optimizely.com
+  categories:
+    - Opal
+  availability:
+    - all
+
+runtime: node22
+
+functions:
+  opal_tool:
+    entry_point: OpalToolFunction
+    description: Opal tool function
