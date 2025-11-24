@@ -1,0 +1,531 @@
+import { logger } from '@zaiusinc/app-sdk';
+import { ToolFunction, tool, ParameterType, OptiIdAuthData } from '@optimizely-opal/opal-tool-ocp-sdk';
+import { storage } from '@zaiusinc/app-sdk';
+import { MondayClient } from '../clients/MondayClient';
+
+// Define interfaces for parameters
+interface ListBoardsParameters {
+  limit?: number;
+}
+
+interface GetBoardParameters {
+  boardId: string;
+}
+
+interface CreateItemParameters {
+  boardId: string;
+  itemName: string;
+  groupId?: string;
+  columnValues?: Record<string, any>;
+}
+
+interface UpdateItemColumnParameters {
+  boardId: string;
+  itemId: string;
+  columnId: string;
+  value: any;
+}
+
+interface GetItemParameters {
+  itemId: string;
+}
+
+interface CreateItemsBatchParameters {
+  boardId: string;
+  items: Array<{
+    name: string;
+    groupId?: string;
+    columnValues?: Record<string, any>;
+  }>;
+}
+
+interface CreateResearchItemParameters {
+  boardId: string;
+  itemName: string;
+  researchType: string;
+  researchData: Record<string, any>;
+  groupId?: string;
+}
+
+/**
+ * Class that implements the Opal tool functions for Monday.com integration.
+ * Requirements:
+ * - Must extend the ToolFunction class from the SDK
+ * - Name must match the value of entry_point property from app.yml manifest
+ * - Name must match the file name
+ */
+export class OpalToolFunction extends ToolFunction {
+
+  /**
+   * Get Monday.com API token from settings
+   */
+  private async getApiToken(): Promise<string> {
+    try {
+      const settings = await storage.settings.get('monday_auth');
+      const apiToken = settings?.api_token as string;
+
+      if (!apiToken || apiToken.trim() === '') {
+        throw new Error('Monday.com API token not configured. Please add your API token in the app settings.');
+      }
+
+      return apiToken;
+    } catch (error: any) {
+      logger.error('Failed to get Monday.com API token:', error);
+      throw new Error('Monday.com API token not configured. Please configure it in the app settings.');
+    }
+  }
+
+  /**
+   * Optional: Override the ready() method to check if the function is ready to process requests
+   */
+  protected async ready(): Promise<boolean> {
+    try {
+      // Check if API token is configured
+      await this.getApiToken();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * List all boards accessible to the user
+   */
+  @tool({
+    name: 'monday_list_boards',
+    description: 'List all Monday.com boards accessible to the authenticated user',
+    parameters: [
+      {
+        name: 'limit',
+        type: ParameterType.Integer,
+        description: 'Maximum number of boards to return (default: 50)',
+        required: false
+      }
+    ],
+    endpoint: '/monday_list_boards'
+  })
+  public async mondayListBoards(params: ListBoardsParameters, _authData?: OptiIdAuthData): Promise<any> {
+    try {
+      logger.info('List boards tool called');
+
+      const apiToken = await this.getApiToken();
+      const client = new MondayClient(apiToken);
+
+      const limit = params.limit || 50;
+      const result = await client.listBoards(limit);
+
+      return result;
+    } catch (error: any) {
+      logger.error('Error listing boards:', error);
+      return {
+        success: false,
+        message: `Error listing boards: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Get board details including columns and items
+   */
+  @tool({
+    name: 'monday_get_board',
+    description: 'Get detailed information about a Monday.com board including columns, groups, and items',
+    parameters: [
+      {
+        name: 'boardId',
+        type: ParameterType.String,
+        description: 'The ID of the board to retrieve',
+        required: true
+      }
+    ],
+    endpoint: '/monday_get_board'
+  })
+  public async mondayGetBoard(params: GetBoardParameters, _authData?: OptiIdAuthData): Promise<any> {
+    try {
+      logger.info('Get board tool called', { boardId: params.boardId });
+
+      const apiToken = await this.getApiToken();
+      const client = new MondayClient(apiToken);
+
+      const result = await client.getBoard(params.boardId);
+
+      return result;
+    } catch (error: any) {
+      logger.error('Error getting board:', error);
+      return {
+        success: false,
+        message: `Error getting board: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Create a new item on a board
+   */
+  @tool({
+    name: 'monday_create_item',
+    description: 'Create a new item on a Monday.com board',
+    parameters: [
+      {
+        name: 'boardId',
+        type: ParameterType.String,
+        description: 'The ID of the board where the item will be created',
+        required: true
+      },
+      {
+        name: 'itemName',
+        type: ParameterType.String,
+        description: 'The name/title of the item to create',
+        required: true
+      },
+      {
+        name: 'groupId',
+        type: ParameterType.String,
+        description: 'The ID of the group where the item will be created (optional)',
+        required: false
+      },
+      {
+        name: 'columnValues',
+        type: ParameterType.Dictionary,
+        description: 'Column values as key-value pairs where keys are column IDs (optional)',
+        required: false
+      }
+    ],
+    endpoint: '/monday_create_item'
+  })
+  public async mondayCreateItem(params: CreateItemParameters, _authData?: OptiIdAuthData): Promise<any> {
+    try {
+      logger.info('Create item tool called', { boardId: params.boardId, itemName: params.itemName });
+
+      const apiToken = await this.getApiToken();
+      const client = new MondayClient(apiToken);
+
+      const result = await client.createItem(
+        params.boardId,
+        params.itemName,
+        params.groupId,
+        params.columnValues
+      );
+
+      return result;
+    } catch (error: any) {
+      logger.error('Error creating item:', error);
+      return {
+        success: false,
+        message: `Error creating item: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Update an item's column value
+   */
+  @tool({
+    name: 'monday_update_item_column',
+    description: 'Update a specific column value for a Monday.com item',
+    parameters: [
+      {
+        name: 'boardId',
+        type: ParameterType.String,
+        description: 'The ID of the board containing the item',
+        required: true
+      },
+      {
+        name: 'itemId',
+        type: ParameterType.String,
+        description: 'The ID of the item to update',
+        required: true
+      },
+      {
+        name: 'columnId',
+        type: ParameterType.String,
+        description: 'The ID of the column to update',
+        required: true
+      },
+      {
+        name: 'value',
+        type: ParameterType.String,
+        description: 'The new value for the column',
+        required: true
+      }
+    ],
+    endpoint: '/monday_update_item_column'
+  })
+  public async mondayUpdateItemColumn(params: UpdateItemColumnParameters, _authData?: OptiIdAuthData): Promise<any> {
+    try {
+      logger.info('Update item column tool called', {
+        boardId: params.boardId,
+        itemId: params.itemId,
+        columnId: params.columnId
+      });
+
+      const apiToken = await this.getApiToken();
+      const client = new MondayClient(apiToken);
+
+      const result = await client.updateItemColumnValue(
+        params.boardId,
+        params.itemId,
+        params.columnId,
+        params.value
+      );
+
+      return result;
+    } catch (error: any) {
+      logger.error('Error updating item column:', error);
+      return {
+        success: false,
+        message: `Error updating item column: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Get item details
+   */
+  @tool({
+    name: 'monday_get_item',
+    description: 'Get detailed information about a Monday.com item',
+    parameters: [
+      {
+        name: 'itemId',
+        type: ParameterType.String,
+        description: 'The ID of the item to retrieve',
+        required: true
+      }
+    ],
+    endpoint: '/monday_get_item'
+  })
+  public async mondayGetItem(params: GetItemParameters, _authData?: OptiIdAuthData): Promise<any> {
+    try {
+      logger.info('Get item tool called', { itemId: params.itemId });
+
+      const apiToken = await this.getApiToken();
+      const client = new MondayClient(apiToken);
+
+      const result = await client.getItem(params.itemId);
+
+      return result;
+    } catch (error: any) {
+      logger.error('Error getting item:', error);
+      return {
+        success: false,
+        message: `Error getting item: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Create multiple items in a batch
+   */
+  @tool({
+    name: 'monday_create_items_batch',
+    description: 'Create multiple items on a Monday.com board in a single operation',
+    parameters: [
+      {
+        name: 'boardId',
+        type: ParameterType.String,
+        description: 'The ID of the board where items will be created',
+        required: true
+      },
+      {
+        name: 'items',
+        type: ParameterType.List,
+        description: 'Array of items to create, each with name, optional groupId, and optional columnValues',
+        required: true
+      }
+    ],
+    endpoint: '/monday_create_items_batch'
+  })
+  public async mondayCreateItemsBatch(params: CreateItemsBatchParameters, _authData?: OptiIdAuthData): Promise<any> {
+    try {
+      logger.info('Create items batch tool called', {
+        boardId: params.boardId,
+        itemCount: params.items?.length || 0
+      });
+
+      const apiToken = await this.getApiToken();
+      const client = new MondayClient(apiToken);
+
+      const result = await client.createItemsBatch(params.boardId, params.items);
+
+      return result;
+    } catch (error: any) {
+      logger.error('Error creating items batch:', error);
+      return {
+        success: false,
+        message: `Error creating items batch: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Create a research item from Opal research data
+   * This is a specialized tool that transforms Opal research data into Monday.com items
+   */
+  @tool({
+    name: 'monday_create_research_item',
+    description: 'Create a Monday.com item from Opal research data (experiments, audits, etc.)',
+    parameters: [
+      {
+        name: 'boardId',
+        type: ParameterType.String,
+        description: 'The ID of the board where the research item will be created',
+        required: true
+      },
+      {
+        name: 'itemName',
+        type: ParameterType.String,
+        description: 'The name/title of the research item',
+        required: true
+      },
+      {
+        name: 'researchType',
+        type: ParameterType.String,
+        description: 'Type of research (e.g., "experiment_plan", "experiment_results", "audit_report")',
+        required: true
+      },
+      {
+        name: 'researchData',
+        type: ParameterType.Dictionary,
+        description: 'The research data to transform into Monday.com column values',
+        required: true
+      },
+      {
+        name: 'groupId',
+        type: ParameterType.String,
+        description: 'The ID of the group where the item will be created (optional)',
+        required: false
+      }
+    ],
+    endpoint: '/monday_create_research_item'
+  })
+  public async mondayCreateResearchItem(
+    params: CreateResearchItemParameters,
+    _authData?: OptiIdAuthData
+  ): Promise<any> {
+    try {
+      logger.info('Create research item tool called', {
+        boardId: params.boardId,
+        researchType: params.researchType
+      });
+
+      const apiToken = await this.getApiToken();
+      const client = new MondayClient(apiToken);
+
+      // First, get the board to understand its column structure
+      const boardResult = await client.getBoard(params.boardId);
+      const board = boardResult.data;
+
+      // Transform research data into column values based on research type
+      const columnValues = this.transformResearchDataToColumnValues(
+        params.researchType,
+        params.researchData,
+        board.columns
+      );
+
+      // Create the item
+      const result = await client.createItem(
+        params.boardId,
+        params.itemName,
+        params.groupId,
+        columnValues
+      );
+
+      return {
+        success: true,
+        data: {
+          ...result.data,
+          researchType: params.researchType,
+          transformedColumns: Object.keys(columnValues)
+        }
+      };
+    } catch (error: any) {
+      logger.error('Error creating research item:', error);
+      return {
+        success: false,
+        message: `Error creating research item: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Transform Opal research data into Monday.com column values
+   * Note: Final formatting is handled by MondayClient.formatColumnValue based on column types
+   */
+  private transformResearchDataToColumnValues(
+    researchType: string,
+    researchData: Record<string, any>,
+    boardColumns: Array<{ id: string; title: string; type: string }>
+  ): Record<string, any> {
+    const columnValues: Record<string, any> = {};
+
+    // Create maps for column lookup
+    const columnMap = new Map<string, string>(); // title -> id
+    const columnTypeMap = new Map<string, string>(); // id -> type
+    boardColumns.forEach((col) => {
+      columnMap.set(col.title.toLowerCase(), col.id);
+      columnMap.set(col.id, col.id); // Also allow direct ID lookup
+      columnTypeMap.set(col.id, col.type);
+    });
+
+    // Transform based on research type
+    switch (researchType.toLowerCase()) {
+    case 'experiment_plan':
+    case 'experiment':
+      // Map experiment plan fields to common column names
+      if (researchData.status && columnMap.has('status')) {
+        const columnId = columnMap.get('status')!;
+        // Pass as string - formatColumnValue will format based on column type
+        columnValues[columnId] = researchData.status;
+      }
+      if (researchData.hypothesis && columnMap.has('hypothesis')) {
+        const columnId = columnMap.get('hypothesis')!;
+        columnValues[columnId] = researchData.hypothesis;
+      }
+      if (researchData.sample_size && columnMap.has('sample size')) {
+        const columnId = columnMap.get('sample size')!;
+        // Pass as number - formatColumnValue will format based on column type
+        columnValues[columnId] = researchData.sample_size;
+      }
+      break;
+
+    case 'experiment_results':
+    case 'results':
+      if (researchData.outcome && columnMap.has('outcome')) {
+        const columnId = columnMap.get('outcome')!;
+        columnValues[columnId] = researchData.outcome;
+      }
+      if (researchData.recommendation && columnMap.has('recommendation')) {
+        const columnId = columnMap.get('recommendation')!;
+        columnValues[columnId] = researchData.recommendation;
+      }
+      break;
+
+    case 'audit_report':
+    case 'audit':
+      if (researchData.score && columnMap.has('score')) {
+        const columnId = columnMap.get('score')!;
+        // Pass as number - formatColumnValue will format based on column type
+        columnValues[columnId] = researchData.score;
+      }
+      if (researchData.findings && columnMap.has('findings')) {
+        const columnId = columnMap.get('findings')!;
+        columnValues[columnId] = researchData.findings;
+      }
+      break;
+    }
+
+    // Generic mapping: try to match any research data keys to column titles
+    for (const [key, value] of Object.entries(researchData)) {
+      const columnId = columnMap.get(key.toLowerCase());
+      if (columnId && !columnValues[columnId]) {
+        // Pass value as-is - formatColumnValue in createItem will handle formatting
+        // based on the actual column type from the board
+        columnValues[columnId] = value;
+      }
+    }
+
+    return columnValues;
+  }
+}
+

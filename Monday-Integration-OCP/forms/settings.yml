@@ -1,0 +1,47 @@
+sections:
+  - key: instructions
+    label: Instructions
+    elements:
+      - type: text
+        key: opal_tool_url
+        label: Opal Tool URL
+        disabled: true
+        help: Paste the URL below into your Opal tool settings to enable Monday.com integration tools.
+      - type: divider
+      - type: instructions
+        text: Paste the URL above into `Discovery URL` field in Opal account `Tools` section.
+
+  - key: monday_auth
+    label: Monday.com Authentication
+    elements:
+      - type: instructions
+        text: |
+          To use this integration, you need a Monday.com API token.
+          
+          **How to get your API token:**
+          1. Log in to your Monday.com account
+          2. Click on your profile picture (bottom left)
+          3. Go to "Admin" → "API"
+          4. Click "Generate new token"
+          5. Copy the token and paste it below
+          
+          **Security Note:** Your API token will be stored securely and encrypted.
+      - type: secret
+        key: api_token
+        required: true
+        label: Monday.com API Token
+        help: Enter your Monday.com API token
+        hint: eyJhbGciOiJIUzI1NiJ9...
+      - type: button
+        label: Validate & Save Token
+        style: primary
+        action: validate_token
+      - type: instructions
+        text: |
+          **⚠️ Important:** Make sure your API token has the necessary permissions to:
+          - Read boards and items
+          - Create items
+          - Update items
+          
+          The token inherits permissions from your Monday.com account.
+

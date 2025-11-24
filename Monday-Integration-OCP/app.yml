@@ -1,0 +1,20 @@
+meta:
+  app_id: monday_integration_app
+  display_name: Monday.com Integration
+  version: 1.0.0-dev.13
+  vendor: optimizely
+  summary: Opal tool to create and manage Monday.com content from Opal research
+  support_url: https://support.optimizely.com
+  contact_email: support@optimizely.com
+  categories:
+    - Opal
+  availability:
+    - all
+
+runtime: node22
+
+functions:
+  opal_tool:
+    entry_point: OpalToolFunction
+    description: Opal tool function for Monday.com integration
+
