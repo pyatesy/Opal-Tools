@@ -36,8 +36,10 @@
   },
   "dependencies": {
     "@optimizely-opal/opal-tool-ocp-sdk": "^1.0.0-beta.8",
+    "@types/form-data": "^2.5.2",
     "@zaiusinc/app-sdk": "^2.2.4",
     "@zaiusinc/node-sdk": "^2.0.0",
+    "form-data": "^4.0.5",
     "node-fetch": "^2.7.0"
   },
   "resolutions": {
@@ -45,4 +47,3 @@
     "jose": "^5.10.0"
   }
 }
-

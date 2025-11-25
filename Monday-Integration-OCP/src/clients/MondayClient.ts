@@ -1,5 +1,6 @@
 import { logger } from '@zaiusinc/app-sdk';
 import fetch from 'node-fetch';
+import FormData from 'form-data';
 
 /**
  * Monday.com GraphQL API Client
@@ -978,6 +979,551 @@ export class MondayClient {
     return {
       success: true,
       data: board.groups || []
+    };
+  }
+
+  /**
+   * Upload a file to Monday.com
+   * @param fileBuffer - The file content as a Buffer
+   * @param fileName - The name of the file
+   * @returns File ID and metadata
+   */
+  public async uploadFile(fileBuffer: Buffer, fileName: string): Promise<any> {
+    logger.info('[Monday API] uploadFile called:', { fileName, size: fileBuffer.length });
+
+    const fileUrl = 'https://api.monday.com/v2/file';
+    const formData = new FormData();
+    formData.append('query', 'mutation ($file: File!) { add_file_to_update(file: $file) { id } }');
+    formData.append('variables[file]', fileBuffer, {
+      filename: fileName,
+      contentType: this.getContentType(fileName)
+    });
+
+    try {
+      const startTime = Date.now();
+      logger.debug('[Monday API] Uploading file to:', fileUrl);
+      logger.debug('[Monday API] File details:', {
+        fileName,
+        size: fileBuffer.length,
+        contentType: this.getContentType(fileName)
+      });
+
+      const response = await fetch(fileUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': this.apiToken,
+          'API-Version': '2024-01',
+          ...formData.getHeaders()
+        },
+        body: formData as any
+      });
+
+      const responseTime = Date.now() - startTime;
+      const statusMsg = `[Monday API] File upload response received in ${responseTime}ms - ` +
+        `Status: ${response.status} ${response.statusText}`;
+      logger.info(statusMsg);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(`[Monday API] File upload HTTP Error ${response.status}:`, errorText);
+        throw new Error(`Monday.com file upload error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const result = await response.json() as { data?: any; errors?: Array<{ message?: string }> };
+
+      if (result.errors && result.errors.length > 0) {
+        const errorMessages = result.errors.map((e: { message?: string }) => e.message || 'Unknown error').join(', ');
+        logger.error('[Monday API] File upload GraphQL errors:', JSON.stringify(result.errors, null, 2));
+        throw new Error(`Monday.com GraphQL errors: ${errorMessages}`);
+      }
+
+      logger.info(`[Monday API] File uploaded successfully in ${responseTime}ms`);
+      logger.debug('[Monday API] Upload response:', JSON.stringify(result.data, null, 2));
+
+      // The response should contain the file ID
+      // Note: add_file_to_update returns an update with file, we need to extract file ID
+      // For direct file upload, we might need to use a different approach
+      return {
+        success: true,
+        data: result.data
+      };
+    } catch (error: any) {
+      logger.error('[Monday API] File upload failed:', {
+        error: error.message,
+        stack: error.stack,
+        fileName
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Add a file to an item's file column
+   * @param itemId - The ID of the item
+   * @param columnId - The ID of the file column
+   * @param fileBuffer - The file content as a Buffer
+   * @param fileName - The name of the file
+   * @returns Result with file ID
+   */
+  public async addFileToColumn(
+    itemId: string | number,
+    columnId: string,
+    fileBuffer: Buffer,
+    fileName: string
+  ): Promise<any> {
+    logger.info('[Monday API] addFileToColumn called:', {
+      itemId: String(itemId),
+      columnId,
+      fileName,
+      size: fileBuffer.length
+    });
+
+    const fileUrl = 'https://api.monday.com/v2/file';
+    const formData = new FormData();
+
+    // Monday.com mutation to add file to column
+    const mutation = `mutation ($file: File!) {
+      add_file_to_column(file: $file, item_id: ${itemId}, column_id: "${columnId}") {
+        id
+      }
+    }`;
+
+    formData.append('query', mutation);
+    formData.append('variables[file]', fileBuffer, {
+      filename: fileName,
+      contentType: this.getContentType(fileName)
+    });
+
+    try {
+      const startTime = Date.now();
+      logger.debug('[Monday API] Adding file to column:', {
+        itemId: String(itemId),
+        columnId,
+        fileName
+      });
+
+      const response = await fetch(fileUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': this.apiToken,
+          'API-Version': '2024-01',
+          ...formData.getHeaders()
+        },
+        body: formData as any
+      });
+
+      const responseTime = Date.now() - startTime;
+      const statusMsg = `[Monday API] Add file to column response received in ${responseTime}ms - ` +
+        `Status: ${response.status} ${response.statusText}`;
+      logger.info(statusMsg);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(`[Monday API] Add file to column HTTP Error ${response.status}:`, errorText);
+        throw new Error(`Monday.com API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+
+      const result = await response.json() as { data?: any; errors?: Array<{ message?: string }> };
+
+      if (result.errors && result.errors.length > 0) {
+        const errorMessages = result.errors.map((e: { message?: string }) => e.message || 'Unknown error').join(', ');
+        logger.error('[Monday API] Add file to column GraphQL errors:', JSON.stringify(result.errors, null, 2));
+        throw new Error(`Monday.com GraphQL errors: ${errorMessages}`);
+      }
+
+      logger.info(`[Monday API] File added to column successfully in ${responseTime}ms`);
+      logger.debug('[Monday API] Add file to column response:', JSON.stringify(result.data, null, 2));
+
+      return {
+        success: true,
+        data: result.data
+      };
+    } catch (error: any) {
+      logger.error('[Monday API] Add file to column failed:', {
+        error: error.message,
+        stack: error.stack,
+        itemId: String(itemId),
+        columnId,
+        fileName
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get file/asset information
+   * @param fileId - The ID of the file/asset
+   * @returns File metadata
+   */
+  public async getFile(fileId: string | number): Promise<any> {
+    logger.info(`[Monday API] getFile called for fileId: ${fileId}`);
+
+    const query = `
+      query ($fileId: [ID!]!) {
+        assets(ids: $fileId) {
+          id
+          name
+          url
+          file_extension
+          file_size
+          created_at
+        }
+      }
+    `;
+
+    const data = await this.executeGraphQL(query, { fileId: [String(fileId)] });
+    const file = data.assets?.[0];
+
+    if (!file) {
+      logger.error(`[Monday API] File with ID ${fileId} not found`);
+      throw new Error(`File with ID ${fileId} not found`);
+    }
+
+    logger.info(`[Monday API] getFile completed for file "${file.name}" (${file.id})`);
+    logger.debug('[Monday API] File details:', {
+      fileId: file.id,
+      fileName: file.name,
+      fileSize: file.file_size,
+      fileExtension: file.file_extension
+    });
+
+    return {
+      success: true,
+      data: file
+    };
+  }
+
+  /**
+   * Get files/assets for an item
+   * @param itemId - The ID of the item
+   * @returns Array of file metadata
+   */
+  public async getItemFiles(itemId: string | number): Promise<any> {
+    logger.info(`[Monday API] getItemFiles called for itemId: ${itemId}`);
+
+    const query = `
+      query ($itemId: [ID!]!) {
+        items(ids: $itemId) {
+          id
+          name
+          assets {
+            id
+            name
+            url
+            file_extension
+            file_size
+            created_at
+          }
+        }
+      }
+    `;
+
+    const data = await this.executeGraphQL(query, { itemId: [String(itemId)] });
+    const item = data.items?.[0];
+
+    if (!item) {
+      logger.error(`[Monday API] Item with ID ${itemId} not found`);
+      throw new Error(`Item with ID ${itemId} not found`);
+    }
+
+    const files = (item.assets || []) as Array<{ id: string; name: string; file_size?: number }>;
+    logger.info(`[Monday API] getItemFiles completed - found ${files.length} files for item "${item.name}"`);
+    logger.debug('[Monday API] Files:', files.map((f) => ({
+      id: f.id,
+      name: f.name,
+      size: f.file_size
+    })));
+
+    return {
+      success: true,
+      data: {
+        itemId: item.id,
+        itemName: item.name,
+        files
+      }
+    };
+  }
+
+  /**
+   * Get content type based on file extension
+   * @param fileName - The name of the file
+   * @returns MIME type string
+   */
+  private getContentType(fileName: string): string {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    const contentTypes: Record<string, string> = {
+      'pdf': 'application/pdf',
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'svg': 'image/svg+xml',
+      'txt': 'text/plain',
+      'csv': 'text/csv',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'xls': 'application/vnd.ms-excel',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'doc': 'application/msword',
+      'mp4': 'video/mp4',
+      'mp3': 'audio/mpeg',
+      'json': 'application/json',
+      'xml': 'application/xml',
+      'zip': 'application/zip'
+    };
+
+    return contentTypes[extension || ''] || 'application/octet-stream';
+  }
+
+  /**
+   * Create a new tag or get existing tag by name
+   * @param boardId - The ID of the board where the tag will be created
+   * @param tagName - The name of the tag
+   * @param color - Optional color for the tag
+   * @returns Tag ID and metadata
+   */
+  public async createOrGetTag(
+    boardId: string | number,
+    tagName: string,
+    color?: string
+  ): Promise<any> {
+    logger.info('[Monday API] createOrGetTag called:', {
+      boardId: String(boardId),
+      tagName,
+      color: color || 'none'
+    });
+
+    const mutation = `
+      mutation ($boardId: ID!, $tagName: String!) {
+        create_or_get_tag(board_id: $boardId, tag_name: $tagName) {
+          id
+          name
+          color
+        }
+      }
+    `;
+
+    const data = await this.executeGraphQL(mutation, {
+      boardId: String(boardId),
+      tagName
+    });
+
+    const tag = data.create_or_get_tag;
+    if (!tag) {
+      throw new Error('Failed to create or get tag');
+    }
+
+    logger.info(`[Monday API] createOrGetTag completed - tag "${tag.name}" (${tag.id})`);
+    logger.debug('[Monday API] Tag details:', {
+      tagId: tag.id,
+      tagName: tag.name,
+      color: tag.color
+    });
+
+    return {
+      success: true,
+      data: tag
+    };
+  }
+
+  /**
+   * Get all tags for a board
+   * @param boardId - The ID of the board
+   * @returns Array of tag metadata
+   */
+  public async getBoardTags(boardId: string | number): Promise<any> {
+    logger.info(`[Monday API] getBoardTags called for boardId: ${boardId}`);
+
+    const query = `
+      query ($boardId: [ID!]!) {
+        boards(ids: $boardId) {
+          id
+          name
+          tags {
+            id
+            name
+            color
+          }
+        }
+      }
+    `;
+
+    const data = await this.executeGraphQL(query, { boardId: [String(boardId)] });
+    const board = data.boards?.[0];
+
+    if (!board) {
+      logger.error(`[Monday API] Board with ID ${boardId} not found`);
+      throw new Error(`Board with ID ${boardId} not found`);
+    }
+
+    const tags = (board.tags || []) as Array<{ id: string; name: string; color?: string }>;
+    logger.info(`[Monday API] getBoardTags completed - found ${tags.length} tags for board "${board.name}"`);
+    logger.debug('[Monday API] Tags:', tags.map((t) => ({
+      id: t.id,
+      name: t.name,
+      color: t.color
+    })));
+
+    return {
+      success: true,
+      data: {
+        boardId: board.id,
+        boardName: board.name,
+        tags
+      }
+    };
+  }
+
+  /**
+   * Get tags assigned to an item
+   * @param itemId - The ID of the item
+   * @param columnId - Optional column ID for tags column (if not provided, searches all tag columns)
+   * @returns Array of tag metadata
+   */
+  public async getItemTags(itemId: string | number, columnId?: string): Promise<any> {
+    logger.info('[Monday API] getItemTags called:', {
+      itemId: String(itemId),
+      columnId: columnId || 'all columns'
+    });
+
+    const query = `
+      query ($itemId: [ID!]!) {
+        items(ids: $itemId) {
+          id
+          name
+          column_values {
+            id
+            type
+            text
+            value
+          }
+        }
+      }
+    `;
+
+    const data = await this.executeGraphQL(query, { itemId: [String(itemId)] });
+    const item = data.items?.[0];
+
+    if (!item) {
+      logger.error(`[Monday API] Item with ID ${itemId} not found`);
+      throw new Error(`Item with ID ${itemId} not found`);
+    }
+
+    // Find tag columns and extract tag IDs
+    interface ColumnValue {
+      id: string;
+      type: string;
+      text?: string;
+      value?: string | { tag_ids?: string[] };
+    }
+
+    const columnValues = (item.column_values || []) as ColumnValue[];
+    const tagColumns = columnValues.filter((cv) => {
+      if (cv.type !== 'tags') {
+        return false;
+      }
+      if (columnId && cv.id !== columnId) {
+        return false;
+      }
+      return true;
+    });
+
+    const allTagIds: string[] = [];
+    tagColumns.forEach((col) => {
+      try {
+        const value = typeof col.value === 'string' ? JSON.parse(col.value) : col.value;
+        if (value && typeof value === 'object' && value !== null && 'tag_ids' in value) {
+          const tagIds = (value as { tag_ids: unknown[] }).tag_ids;
+          if (Array.isArray(tagIds)) {
+            allTagIds.push(...tagIds.map((id: unknown) => String(id)));
+          }
+        }
+      } catch {
+        // If parsing fails, try to extract from text
+        if (col.text) {
+          logger.debug(`[Monday API] Could not parse tag IDs from column ${col.id}, text: ${col.text}`);
+        }
+      }
+    });
+
+    // Remove duplicates
+    const uniqueTagIds = [...new Set(allTagIds)];
+
+    const tagCount = uniqueTagIds.length;
+    logger.info(`[Monday API] getItemTags completed - found ${tagCount} unique tags for item "${item.name}"`);
+    logger.debug('[Monday API] Tag IDs:', uniqueTagIds);
+
+    return {
+      success: true,
+      data: {
+        itemId: item.id,
+        itemName: item.name,
+        tagIds: uniqueTagIds,
+        tagColumns: tagColumns.map((col) => ({
+          columnId: col.id,
+          text: col.text
+        }))
+      }
+    };
+  }
+
+  /**
+   * Get items by tag
+   * @param boardId - The ID of the board
+   * @param tagId - The ID of the tag
+   * @returns Array of items with the specified tag
+   */
+  public async getItemsByTag(boardId: string | number, tagId: string | number): Promise<any> {
+    logger.info('[Monday API] getItemsByTag called:', {
+      boardId: String(boardId),
+      tagId: String(tagId)
+    });
+
+    // Use items_page_by_column_values to filter by tag
+    const query = `
+      query ($boardId: [ID!]!, $tagId: String!) {
+        items_page_by_column_values(
+          board_ids: $boardId
+          column_id: "tags"
+          column_value: $tagId
+          limit: 50
+        ) {
+          items {
+            id
+            name
+            column_values {
+              id
+              type
+              text
+            }
+          }
+        }
+      }
+    `;
+
+    const data = await this.executeGraphQL(query, {
+      boardId: [String(boardId)],
+      tagId: String(tagId)
+    });
+
+    interface Item {
+      id: string;
+      name: string;
+    }
+
+    const items = (data.items_page_by_column_values?.items || []) as Item[];
+    logger.info(`[Monday API] getItemsByTag completed - found ${items.length} items with tag ${tagId}`);
+    logger.debug('[Monday API] Items:', items.map((i) => ({
+      id: i.id,
+      name: i.name
+    })));
+
+    return {
+      success: true,
+      data: {
+        boardId: String(boardId),
+        tagId: String(tagId),
+        items
+      }
     };
   }
 }
