@@ -21,9 +21,11 @@ jest.mock('@zaiusinc/app-sdk', () => {
 });
 jest.mock('@optimizely-opal/opal-tool-ocp-sdk', () => ({
   ToolFunction: class MockToolFunction {
-    constructor(_request: any) {}
+    public constructor(_request: any) {
+      // Mock constructor - no implementation needed
+    }
   },
-  tool: jest.fn((options: any) => (target: any, propertyKey: string, descriptor: PropertyDescriptor) => descriptor),
+  tool: jest.fn((_options: any) => (target: any, propertyKey: string, descriptor: PropertyDescriptor) => descriptor),
   ParameterType: {
     String: 'string',
     Integer: 'integer',
@@ -77,6 +79,7 @@ describe('OpalToolFunction', () => {
 
   describe('getApiToken', () => {
     it('should retrieve API token from storage', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any
       const token = await (toolFunction as any).getApiToken();
       expect(token).toBe(mockApiToken);
       expect(storage.settings.get).toHaveBeenCalledWith('monday_auth');
@@ -84,6 +87,7 @@ describe('OpalToolFunction', () => {
 
     it('should throw error if API token not configured', async () => {
       (storage.settings.get as jest.Mock).mockResolvedValue({});
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any
       await expect((toolFunction as any).getApiToken()).rejects.toThrow('Monday.com API token not configured');
     });
   });
