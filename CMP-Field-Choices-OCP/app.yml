@@ -1,0 +1,20 @@
+meta:
+  app_id: cmp_field_choices_app
+  display_name: CMP Field Choices
+  version: 1.0.0-dev.5
+  vendor: optimizely
+  summary: Opal tool for managing CMP field choices - add and update options on label, dropdown, checkbox, and radio button fields
+  support_url: https://support.optimizely.com
+  contact_email: support@optimizely.com
+  categories:
+    - Opal
+  availability:
+    - all
+
+runtime: node22
+
+functions:
+  opal_tool:
+    entry_point: OpalToolFunction
+    description: Opal tool function for CMP field choice management
+    opal_tool: true

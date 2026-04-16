@@ -1,0 +1,36 @@
+{
+  "name": "cmp_field_choices_app",
+  "version": "1.0.0-dev.1",
+  "main": "dist/index.js",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "yarn && npx rimraf dist && npx tsc && copyfiles app.yml dist && copyfiles --up 1 \"src/**/*.{yml,yaml}\" dist",
+    "validate": "yarn build && yarn lint && yarn test && npx cross-env LOG_LEVEL=never node node_modules/@zaiusinc/app-sdk/dist/app/validation/runValidation.js",
+    "lint": "npx eslint src --ext ts --ignore-pattern '**/*.test.ts'",
+    "test": "npx jest --passWithNoTests"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.15.17",
+    "@types/node-fetch": "^2.6.12",
+    "@typescript-eslint/eslint-plugin": "^8.32.1",
+    "@typescript-eslint/parser": "^8.32.1",
+    "copyfiles": "^2.4.1",
+    "cross-env": "^7.0.3",
+    "eslint": "^9.26.0",
+    "jest": "^29.7.0",
+    "rimraf": "^6.0.1",
+    "ts-jest": "^29.3.2",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@optimizely-opal/opal-tool-ocp-sdk": "^1.1.4",
+    "@zaiusinc/app-sdk": "2.4.1",
+    "@zaiusinc/node-sdk": "^2.0.0",
+    "node-fetch": "^2.7.0"
+  },
+  "resolutions": {
+    "grpc-boom": "^3.0.11",
+    "jose": "^4.15.4"
+  }
+}

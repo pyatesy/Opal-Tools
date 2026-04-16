@@ -1,0 +1,41 @@
+sections:
+  - key: instructions
+    label: CMP Field Choices
+    elements:
+      - type: instructions
+        text: |
+          This tool manages field choices (labels, dropdowns, checkboxes, radio buttons)
+          on the Optimizely CMP.
+          
+          Opal authentication uses OptiID (caller validation), and CMP API calls use OAuth2 Client Credentials.
+          
+          This version uses CMP OAuth2 Client Credentials (server-to-server):
+          - Configure `cmp_client_id` and `cmp_client_secret`
+          - The tool will fetch and cache an access token for calls to `api.cmp.optimizely.com/v3`
+          
+          Before validating, ensure your CMP app has:
+          - Authorization Permissions: Allow Client Credentials
+          
+          Tools: cmp_update_field_choice, cmp_add_field_choices, cmp_get_field_values.
+
+  - key: cmp_oauth_credentials
+    label: CMP OAuth2 (Client Credentials)
+    properties:
+      - integrated
+    elements:
+      - type: text
+        key: cmp_client_id
+        required: true
+        label: CMP Client ID
+        help: |
+          The `client_id` from your Optimizely CMP OAuth2 app.
+      - type: secret
+        key: cmp_client_secret
+        required: true
+        label: CMP Client Secret
+        help: |
+          The `client_secret` from your Optimizely CMP OAuth2 app. Stored securely by the platform.
+      - type: button
+        label: Save & Validate
+        style: primary
+        action: validate_credentials
